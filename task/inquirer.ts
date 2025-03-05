@@ -2,10 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { glob } from "glob";
 import { input } from "@inquirer/prompts";
+import * as prettier from "prettier";
 
 const getDirectories = async (): Promise<{
-  sourcePatterns: string[];
-  targetDir: string;
+  sourcePatterns: string[],
 }> => {
   const sourcePatternInput = await input({
     message: "複製元ファイルのパスを入力してください",
@@ -32,25 +32,22 @@ const getDirectories = async (): Promise<{
     .filter((pattern) => pattern);
   console.log(sourcePatterns);
 
-  const targetDir = await input({
-    message: "複製先ディレクトリを指定してください",
-  });
-
-  return { sourcePatterns, targetDir };
+  return { sourcePatterns };
 };
 
 async function processFiles() {
-  const { sourcePatterns, targetDir } = await getDirectories();
+  const { sourcePatterns } = await getDirectories();
 
   sourcePatterns.forEach((sourcePattern) => {
     const files = glob.sync(sourcePattern);
 
-    files.forEach((file, index) => {
+    files.forEach(async (file, index) => {
       const relativePath = path.relative(path.dirname(sourcePattern), file);
+
       //TODO: 案件番号をファイル名に利用する
       const newFileName =
         path.basename(file, ".html") + `_hoge-${index + 1}.ejs`;
-      const targetPath = path.join(targetDir, relativePath);
+      const targetPath = path.join('src/', relativePath);
 
       const targetDirPath = path.dirname(targetPath);
       if (!fs.existsSync(targetPath)) {
@@ -59,6 +56,11 @@ async function processFiles() {
 
       fs.copyFileSync(file, path.join(targetDirPath, newFileName));
       console.log(`コピーしてリネームしました: ${file} => ${newFileName}`);
+
+      const htmlText = fs.readFileSync(file, 'utf-8');
+      const formated = await prettier.format(htmlText, {
+        parser: 'html'
+      });
     });
   });
 }
