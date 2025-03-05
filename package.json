@@ -5,12 +5,15 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node task/inquirer"
+    "start": "ts-node task/inquirer",
+    "hygen": "hygen mygen with-prompt"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "hygen": "^6.2.11",
+    "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },
