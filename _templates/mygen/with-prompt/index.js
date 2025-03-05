@@ -1,7 +1,6 @@
 const fs = require("fs");
 const prettier = require("prettier");
 const path = require("node:path");
-const SRC_PATH = "src/";
 
 module.exports = {
   prompt: ({ inquirer }) => {
@@ -19,7 +18,7 @@ module.exports = {
       const fileName = path.basename(file_path, ".html");
       const parsed = await prettier.format(distFile, { parser: "html" });
 
-      return { ...answers, SRC_PATH, dirName, fileName, parsed };
+      return { dirName, fileName, parsed };
     });
   },
 };
