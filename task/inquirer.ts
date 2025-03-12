@@ -10,7 +10,7 @@ async function promptForSourcePatterns(): Promise<string[]> {
   });
 
   return sourcePatternInput
-    .split("\n")
+    .split(",")
     .map((pattern) => pattern.trim())
     .filter((pattern) => pattern);
 }
@@ -53,7 +53,7 @@ function createTargetFilePath(
   testPattern: string,
 ): string {
   const baseFileName = path.basename(sourceFilePath, ".html");
-  const newFileName = `${baseFileName}_${testPattern}-${ankenNumber}.ejs`; // インデックスを削除
+  const newFileName = `${baseFileName}_${ankenNumber}_${testPattern}.ejs`;
   return path.join(targetDirectory, newFileName);
 }
 
@@ -84,29 +84,31 @@ async function processFiles() {
       process.exit(1); // エラーコード1で終了
     }
 
-    const sourceFile = matchedFiles[0]; // 1つだけのファイルを取得
-    const fileContent = fs.readFileSync(sourceFile, "utf-8"); // ファイルの内容を読み込む
-    const formattedContent = await formatHtmlWithPrettier(fileContent); // Prettierでフォーマット
+    // 複製元のファイルをすべて処理
+    for (const sourceFile of matchedFiles) {
+      const fileContent = fs.readFileSync(sourceFile, "utf-8"); // ファイルの内容を読み込む
+      const formattedContent = await formatHtmlWithPrettier(fileContent); // Prettierでフォーマット
 
-    for (const testPattern of testPatterns) {
-      const targetFilePath = createTargetFilePath(
-        sourceFile,
-        targetDirectory,
-        ankenNumber,
-        testPattern,
-      );
-      const targetDirPath = path.dirname(targetFilePath);
+      for (const testPattern of testPatterns) {
+        const targetFilePath = createTargetFilePath(
+          sourceFile,
+          targetDirectory,
+          ankenNumber,
+          testPattern,
+        );
+        const targetDirPath = path.dirname(targetFilePath);
 
-      // ディレクトリが存在しない場合は作成する
-      if (!fs.existsSync(targetDirPath)) {
-        fs.mkdirSync(targetDirPath, { recursive: true });
+        // ディレクトリが存在しない場合は作成する
+        if (!fs.existsSync(targetDirPath)) {
+          fs.mkdirSync(targetDirPath, { recursive: true });
+        }
+
+        // フォーマットされた内容をファイルに書き込む
+        fs.writeFileSync(targetFilePath, formattedContent);
+        console.log(
+          `コピーしてリネームしました: ${sourceFile} => ${targetFilePath}`,
+        );
       }
-
-      // フォーマットされた内容をファイルに書き込む
-      fs.writeFileSync(targetFilePath, formattedContent);
-      console.log(
-        `コピーしてリネームしました: ${sourceFile} => ${targetFilePath}`,
-      );
     }
   }
 }
