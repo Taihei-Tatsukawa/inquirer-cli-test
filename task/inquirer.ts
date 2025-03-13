@@ -47,21 +47,21 @@ async function getUserInput(): Promise<{
 }
 
 function createTargetFilePath(
-  sourceFilePath: string,
-  targetDirectory: string,
-  ankenNumber: string,
-  testPattern: string,
+  {
+    sourceFilePath,
+    targetDirectory,
+    ankenNumber,
+    testPattern,
+  } : {
+    sourceFilePath: string,
+    targetDirectory: string,
+    ankenNumber: string,
+    testPattern: string,
+  }
 ): string {
   const baseFileName = path.basename(sourceFilePath, ".html");
   const newFileName = `${baseFileName}_${ankenNumber}_${testPattern}.ejs`;
   return path.join(targetDirectory, newFileName);
-}
-
-async function formatHtmlWithPrettier(htmlContent: string): Promise<string> {
-  return prettier.format(htmlContent, {
-    parser: "html",
-    // 必要に応じてPrettierのオプションを追加できます
-  });
 }
 
 async function processFiles() {
@@ -85,16 +85,20 @@ async function processFiles() {
     }
 
     // 複製元のファイルをすべて処理
-    for (const sourceFile of matchedFiles) {
-      const fileContent = fs.readFileSync(sourceFile, "utf-8"); // ファイルの内容を読み込む
-      const formattedContent = await formatHtmlWithPrettier(fileContent); // Prettierでフォーマット
+    for (const sourceFilePath of matchedFiles) {
+      const fileContent = fs.readFileSync(sourceFilePath, "utf-8"); // ファイルの内容を読み込む
+      const formattedContent = await prettier.format(fileContent, {
+        parser: "html",
+      });
 
       for (const testPattern of testPatterns) {
         const targetFilePath = createTargetFilePath(
-          sourceFile,
-          targetDirectory,
-          ankenNumber,
-          testPattern,
+          {
+            sourceFilePath,
+            targetDirectory,
+            ankenNumber,
+            testPattern
+          }
         );
         const targetDirPath = path.dirname(targetFilePath);
 
@@ -106,7 +110,7 @@ async function processFiles() {
         // フォーマットされた内容をファイルに書き込む
         fs.writeFileSync(targetFilePath, formattedContent);
         console.log(
-          `コピーしてリネームしました: ${sourceFile} => ${targetFilePath}`,
+          `コピーしてリネームしました: ${sourceFilePath} => ${targetFilePath}`,
         );
       }
     }
