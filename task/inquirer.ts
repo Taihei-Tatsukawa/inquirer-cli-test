@@ -2,67 +2,119 @@ import * as fs from "fs";
 import * as path from "path";
 import { glob } from "glob";
 import { input } from "@inquirer/prompts";
-import * as prettier from "prettier";
+import prettier from "prettier"; // Prettierをインポート
 
-const getDirectories = async (): Promise<{
-  sourcePatterns: string[],
-}> => {
+async function promptForSourcePatterns(): Promise<string[]> {
   const sourcePatternInput = await input({
     message: "複製元ファイルのパスを入力してください",
   });
 
-  //TODO: 案件番号をファイル名の接尾辞につける。
-  const ankenNumber = await input({
+  return sourcePatternInput
+    .split(",")
+    .map((pattern) => pattern.trim())
+    .filter((pattern) => pattern);
+}
+
+async function promptForAnkenNumber(): Promise<string> {
+  return await input({
     message: "案件番号を入力してください",
   });
+}
 
-  //TODO: 入力があったらカンマ区切りで配列に変換。配列のindex分ファイルを複製する
-  //TODO: 複製したファイル名の接尾辞にテストパターンを'_◯'で追加
-  /**
-   * a,b,c ... XXX_a.html, XXX_b.html, XXX_c.html
-   * hoge,fuga,piyo ... XXX_hoge.html, XXX_fuga.html, XXX_piyo.html
-   */
-  const testPattern = await input({
+async function promptForTestPatterns(): Promise<string[]> {
+  const testPatternInput = await input({
     message: "テストパターンをカンマ区切りで指定してください",
   });
 
-  const sourcePatterns = sourcePatternInput
-    .split("\n")
-    .map((pattern) => pattern.trim())
-    .filter((pattern) => pattern);
-  console.log(sourcePatterns);
+  return testPatternInput.split(",").map((pattern) => pattern.trim());
+}
 
-  return { sourcePatterns };
-};
+function getTargetDirectory(sourcePatterns: string[]): string {
+  const firstSourcePattern = sourcePatterns[0];
+  return path.dirname(firstSourcePattern).replace("dist", "src");
+}
+
+async function getUserInput(): Promise<{
+  sourcePatterns: string[];
+  ankenNumber: string;
+  testPatterns: string[];
+}> {
+  const sourcePatterns = await promptForSourcePatterns();
+  const ankenNumber = await promptForAnkenNumber();
+  const testPatterns = await promptForTestPatterns();
+
+  return { sourcePatterns, ankenNumber, testPatterns };
+}
+
+function createTargetFilePath(
+  {
+    sourceFilePath,
+    targetDirectory,
+    ankenNumber,
+    testPattern,
+  } : {
+    sourceFilePath: string,
+    targetDirectory: string,
+    ankenNumber: string,
+    testPattern: string,
+  }
+): string {
+  const baseFileName = path.basename(sourceFilePath, ".html");
+  const newFileName = `${baseFileName}_${ankenNumber}_${testPattern}.ejs`;
+  return path.join(targetDirectory, newFileName);
+}
 
 async function processFiles() {
-  const { sourcePatterns } = await getDirectories();
+  const { sourcePatterns, ankenNumber, testPatterns } = await getUserInput();
+  const targetDirectory = getTargetDirectory(sourcePatterns);
 
-  sourcePatterns.forEach((sourcePattern) => {
-    const files = glob.sync(sourcePattern);
+  for (const sourcePattern of sourcePatterns) {
+    const matchedFiles = glob.sync(sourcePattern);
 
-    files.forEach(async (file, index) => {
-      const relativePath = path.relative(path.dirname(sourcePattern), file);
+    // 複製元に複数のファイルが見つかった場合はエラーを出力して終了
+    if (matchedFiles.length > 1) {
+      console.error(
+        `エラー: 複製元パターン "${sourcePattern}" に複数のファイルが見つかりました: ${matchedFiles.join(", ")}`,
+      );
+      process.exit(1); // エラーコード1で終了
+    } else if (matchedFiles.length === 0) {
+      console.error(
+        `エラー: 複製元パターン "${sourcePattern}" にファイルが見つかりませんでした。`,
+      );
+      process.exit(1); // エラーコード1で終了
+    }
 
-      //TODO: 案件番号をファイル名に利用する
-      const newFileName =
-        path.basename(file, ".html") + `_hoge-${index + 1}.ejs`;
-      const targetPath = path.join('src/', relativePath);
-
-      const targetDirPath = path.dirname(targetPath);
-      if (!fs.existsSync(targetPath)) {
-        fs.mkdirSync(targetDirPath, { recursive: true });
-      }
-
-      fs.copyFileSync(file, path.join(targetDirPath, newFileName));
-      console.log(`コピーしてリネームしました: ${file} => ${newFileName}`);
-
-      const htmlText = fs.readFileSync(file, 'utf-8');
-      const formated = await prettier.format(htmlText, {
-        parser: 'html'
+    // 複製元のファイルをすべて処理
+    for (const sourceFilePath of matchedFiles) {
+      const fileContent = fs.readFileSync(sourceFilePath, "utf-8"); // ファイルの内容を読み込む
+      const formattedContent = await prettier.format(fileContent, {
+        parser: "html",
       });
-    });
-  });
+
+      for (const testPattern of testPatterns) {
+        const targetFilePath = createTargetFilePath(
+          {
+            sourceFilePath,
+            targetDirectory,
+            ankenNumber,
+            testPattern
+          }
+        );
+        const targetDirPath = path.dirname(targetFilePath);
+
+        // ディレクトリが存在しない場合は作成する
+        if (!fs.existsSync(targetDirPath)) {
+          fs.mkdirSync(targetDirPath, { recursive: true });
+        }
+
+        // フォーマットされた内容をファイルに書き込む
+        fs.writeFileSync(targetFilePath, formattedContent);
+        console.log(
+          `コピーしてリネームしました: ${sourceFilePath} => ${targetFilePath}`,
+        );
+      }
+    }
+  }
 }
 
 processFiles();
